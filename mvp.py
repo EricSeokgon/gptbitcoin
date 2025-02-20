@@ -12,43 +12,32 @@ print(df.to_json())
 
 
 # 2. OpenAI에게 데이터 제공하고 판단받기
-from openai import OpenAI
+from cerebras.cloud.sdk import Cerebras
 
-client = OpenAI()
+client = Cerebras(
+    api_key=os.environ.get(
+        "CEREBRAS_API_KEY"
+    ),  # This is the default and can be omitted
+)
 
 
 response = client.chat.completions.create(
-    model="gpt-4o",
+    model="llama3.1-8b",
     messages=[
         {
             "role": "system",
-            "content": [
-                {
-                    "type": "text",
-                    "text": 'You are an expert in Bitcoin investing. Tell me whether to buy, sell, or hold at the moment based on the chart data provided. Response in Json format.\n\nResponse Example:\n{decision: "buy", "reason": "some technical reason"}\n{decision: "sell", "reason": "some technical reason"}\n{decision: "hold", "reason": "some technical reason"}\n\n\n',
-                }
-            ],
+            "content": "You are an expert in Bitcoin investing. Tell me whether to buy, sell, or hold at the moment based on the chart data provided. Response in Json format",
         },
         {
             "role": "user",
-            "content": [
-                {"type": "text", "text": "```User 메시지에 입력된 차트 데이터 ```"}
-            ],
+            "content": df.to_json(),
         },
         {
             "role": "assistant",
-            "content": [
-                {
-                    "type": "text",
-                    "text": '{\n  "decision": "hold",\n  "reason": "The chart data indicates some volatility with recent high price peaks and dips, but there is no clear uptrend or downtrend. Although there was significant trading volume and value spikes recently, likely driven by short-term market sentiment, it\'s advisable to hold as the market may stabilize or trend clearer soon. The decision avoids potential losses from premature selling or buying."\n}\n```',
-                }
-            ],
+            "content": "reason : The chart data indicates some volatility with recent high price peaks and dips, but there is no clear uptrend or downtrend. Although there was significant trading volume and value spikes recently, likely driven by short-term market sentiment, it's advisable to hold as the market may stabilize or trend clearer soon. The decision avoids potential losses from premature selling or buying.",
         },
     ],
     response_format={"type": "text"},
-    temperature=1,
-    max_completion_tokens=2048,
-    top_p=1,
-    frequency_penalty=0,
-    presence_penalty=0,
 )
+
+print(response.choices[0].message.content)
