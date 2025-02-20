@@ -40,4 +40,6 @@ response = client.chat.completions.create(
     response_format={"type": "text"},
 )
 
-print(response.choices[0].message.content)
+result = response.choices[0].message.content
+print(result)
+print(type(result))
