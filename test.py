@@ -16,9 +16,6 @@ def capture_full_page(url, output_path=None):
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
 
-    # 헤드리스 모드는 차트 조작을 위해 비활성화
-
-
     # WebDriver 설정
     driver = webdriver.Chrome(options=chrome_options)
     wait = WebDriverWait(driver, 20)  # 최대 20초 대기
@@ -35,7 +32,7 @@ def capture_full_page(url, output_path=None):
         time_button = wait.until(EC.element_to_be_clickable((By.XPATH, time_button_xpath)))
         time_button.click()
 
-        # 잠시 대기하여 드롭다운 메뉴가 나타나도록 함
+        # 드롭다운 메뉴가 나타나도록 대기
         time.sleep(1)
 
         # 1시간 옵션 클릭
@@ -44,6 +41,22 @@ def capture_full_page(url, output_path=None):
         hour_option.click()
 
         # 차트가 업데이트될 때까지 대기
+        time.sleep(3)
+
+        # 지표 버튼 클릭
+        indicator_button_xpath = "/html/body/div[1]/div[2]/div[3]/div/section[1]/article[1]/div/span[2]/div/div/div[1]/div[1]/div/cq-menu[3]/span"
+        indicator_button = wait.until(EC.element_to_be_clickable((By.XPATH, indicator_button_xpath)))
+        indicator_button.click()
+
+        # 드롭다운 메뉴가 나타나도록 대기
+        time.sleep(1)
+
+        # 볼린저 밴드 옵션 클릭
+        bollinger_option_xpath = "/html/body/div[1]/div[2]/div[3]/div/section[1]/article[1]/div/span[2]/div/div/div[1]/div[1]/div/cq-menu[3]/cq-menu-dropdown/cq-scroll/cq-studies/cq-studies-content/cq-item[15]"
+        bollinger_option = wait.until(EC.element_to_be_clickable((By.XPATH, bollinger_option_xpath)))
+        bollinger_option.click()
+
+        # 지표가 차트에 표시될 때까지 대기
         time.sleep(3)
 
         # 전체 페이지 높이 구하기
