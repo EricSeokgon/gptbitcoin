@@ -16,6 +16,10 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
+from PIL import Image
+import io
+
+
 
 
 load_dotenv()
@@ -54,8 +58,17 @@ def capture_full_page(url, output_path):
         driver.set_window_size(1920, total_height)
 
         # 스크린샷 캡처
-        driver.save_screenshot(output_path)
-        print(f"Screenshot saved as: {output_path}")
+        png = driver.get_screenshot_as_png()
+
+        # PIL Image로 변환
+        img = Image.open(io.BytesIO(png))
+
+        # 이미지 리사이즈 (OpenAI API 제한에 맞춤)
+        img.thumbnail((2000, 2000))
+
+        # 최적화된 이미지 저장
+        img.save(output_path, optimize=True, quality=85)
+        print(f"Optimized screenshot saved as: {output_path}")
         return True
 
     except Exception as e:
@@ -66,6 +79,8 @@ def capture_full_page(url, output_path):
         driver.quit()
 
 
+
+
 class EnhancedCryptoTrader:
     def __init__(self, ticker="KRW-BTC"):
         self.ticker = ticker
@@ -73,12 +88,14 @@ class EnhancedCryptoTrader:
         self.secret = os.getenv('UPBIT_SECRET_KEY')
         self.serpapi_key = os.getenv('SERPAPI_KEY')
         self.upbit = pyupbit.Upbit(self.access, self.secret)
-        self.client = Cerebras(
+        self.client = client = Cerebras(
         api_key=os.environ.get(
             "CEREBRAS_API_KEY"
         ),  # This is the default and can be omitted
     )
         self.fear_greed_api = "https://api.alternative.me/fng/"
+
+
 
 
 
@@ -121,6 +138,8 @@ class EnhancedCryptoTrader:
             return None
 
 
+
+
     def add_technical_indicators(self, df):
         """기술적 분석 지표 추가"""
         # 볼린저 밴드
@@ -151,6 +170,8 @@ class EnhancedCryptoTrader:
         ).average_true_range()
 
         return df
+
+
 
 
     def get_current_status(self):
@@ -187,6 +208,8 @@ class EnhancedCryptoTrader:
             return None
 
 
+
+
     def get_orderbook_data(self):
         """호가 데이터 조회"""
         try:
@@ -217,6 +240,8 @@ class EnhancedCryptoTrader:
         except Exception as e:
             print(f"Error in get_orderbook_data: {e}")
             return None
+
+
 
 
     def get_ohlcv_data(self):
@@ -312,6 +337,8 @@ class EnhancedCryptoTrader:
             return None
 
 
+
+
     def get_crypto_news(self):
         """비트코인 관련 최신 뉴스 조회"""
         try:
@@ -355,9 +382,13 @@ class EnhancedCryptoTrader:
             return None
 
 
+
+
     # [이전 코드의 나머지 메서드들은 그대로 유지...]
     # get_fear_greed_index, add_technical_indicators, get_current_status,
     # get_orderbook_data, get_ohlcv_data 메서드들은 변경 없이 유지
+
+
 
 
     def get_ai_analysis(self, analysis_data):
@@ -382,6 +413,8 @@ class EnhancedCryptoTrader:
             }
 
 
+
+
             prompt = """Analyze the cryptocurrency market based on the following data and generate trading signals:
 1. Technical Indicators (RSI, MACD, Bollinger Bands, etc.)
 2. Order Book Data (Buy/Sell Volume)
@@ -390,7 +423,11 @@ class EnhancedCryptoTrader:
 5. Visual Chart Analysis Results
 
 
+
+
 Please consider all available data including the visual chart analysis to provide a comprehensive market assessment.
+
+
 
 
 Please respond in the following JSON format:
@@ -405,6 +442,8 @@ Please respond in the following JSON format:
 }"""
 
 
+
+
             response = self.client.chat.completions.create(
                 model="gpt-4",
                 messages=[
@@ -412,6 +451,8 @@ Please respond in the following JSON format:
                     {"role": "user", "content": f"Market data for analysis: {json.dumps(optimized_data)}"}
                 ]
             )
+
+
 
 
             result_text = response.choices[0].message.content
@@ -427,12 +468,18 @@ Please respond in the following JSON format:
                     raise Exception("Failed to parse AI response")
 
 
+
+
             return result
+
+
 
 
         except Exception as e:
             print(f"Error in get_ai_analysis: {e}")
             return None
+
+
 
 
     def execute_trade(self, decision, confidence_score, fear_greed_value):
@@ -477,6 +524,8 @@ Please respond in the following JSON format:
             print(f"Error in execute_trade: {e}")
 
 
+
+
 def ai_trading():
     try:
         trader = EnhancedCryptoTrader("KRW-BTC")
@@ -510,6 +559,8 @@ def ai_trading():
 
     except Exception as e:
         print(f"Error in ai_trading: {e}")
+
+
 
 
 if __name__ == "__main__":
