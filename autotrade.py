@@ -49,6 +49,8 @@ class CryptoDataCollector:
         try:
             orderbook = pyupbit.get_orderbook(ticker="KRW-BTC")
 
+            print("호가 데이터 :: ",orderbook)
+
             if not orderbook or len(orderbook) == 0:
                 return None
 
@@ -84,9 +86,12 @@ class CryptoDataCollector:
         try:
             # 30일 일봉 데이터
             daily_data = pyupbit.get_ohlcv(self.ticker, interval="day", count=30)
+            print("30일 일봉 데이터 :: ",daily_data)
 
             # 24시간 시간봉 데이터
             hourly_data = pyupbit.get_ohlcv(self.ticker, interval="minute60", count=24)
+            print("24시간 시간봉 데이터 :: ",daily_data)
+
 
             # 이동평균선 계산
             daily_data['MA5'] = daily_data['close'].rolling(window=5).mean()
