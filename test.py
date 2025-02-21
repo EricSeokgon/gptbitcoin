@@ -1,107 +1,54 @@
-import os
-from dotenv import load_dotenv
-import json
-
-load_dotenv()
-
-
-def ai_trading():
-    # 1. 업비트 차트 데이터 가져오기 (30일 데이터)
-    import pyupbit
-
-    df = pyupbit.get_ohlcv("KRW-BTC", count=30, interval="day")
-    # print(df.to_json())
-
-    # 2. OpenAI에게 데이터 제공하고 판단받기
-    from cerebras.cloud.sdk import Cerebras
-
-    client = Cerebras(
-        api_key=os.environ.get(
-            "CEREBRAS_API_KEY"
-        ),  # This is the default and can be omitted
-    )
-
-    response = client.chat.completions.create(
-        model="llama3.1-8b",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are an expert in Bitcoin investing. Tell me whether to buy, sell, or hold at the moment based on the chart data provided. Response in Json format.\n\nResponse Example:\n{decision: 'buy', 'reason': 'some technical reason'}\n{decision: 'sell', 'reason': 'some technical reason'}\n{decision: 'hold', 'reason': 'some technical reason'}\n\n\n",
-            },
-            {"role": "user", "content": df.to_json()},
-        ],
-        response_format={"type": "json_object"},  # text 대신 json_object로 수정
-    )
-
-    result = response.choices[0].message.content
-    result = json.loads(result)
-    print(result)
-    print(type(result))
-
-    import pyupbit
-
-    access = os.getenv("UPBIT_ACCESS_KEY")
-    secret = os.getenv("UPBIT_SECRET_KEY")
-    upbit = pyupbit.Upbit(access, secret)
-
-    print("### AI Decision: ", result["decision"].upper(), "###")
-    print("### Reason: ", result["reason"], "###")
-
-    if result['decision'] == "buy":
-    # 매수
-        my_krw =upbit.get_balance("KRW")
-        if my_krw*0.9995 > 5000:
-            print("### Buy Order Executed ###")
-            print(upbit.buy_market_order("KRW-BTC",my_krw*0.9995))
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import time
+from datetime import datetime
 
 
-        else :
-            print("### Buy Order Failed: Insufficient KRW (less than 5000 KRW) ###")
-    elif result['decision'] == "sell":
-    # 매도
-        my_btc =upbit.get_balance("KRW-BTC")
-        current_price = pyupbit.get_orderbook(ticker="KRW-BTC")['orderbook_units'][0]["ask_price"]
-
-        if my_btc*current_price > 5000 :
-            print("### Sell Order Executed ###")
-            print(upbit.sell_market_order("KRW-BTC",upbit.get_balance("KRW-BTC")))
-        else :
-            print("### Sell Order Failed: Insufficient BTC (less than 5000 KRW) ###")
-    elif result['decision'] == "hold":
-    # 보유
-        print("sell:",result["reason"])
+def capture_full_page(url, output_path=None):
+    # 크롬 옵션 설정
+    chrome_options = Options()
+    chrome_options.add_argument('--headless')  # 헤드리스 모드
+    chrome_options.add_argument('--start-maximized')  # 최대 창 크기
+    chrome_options.add_argument('--disable-gpu')  # GPU 가속 비활성화
+    chrome_options.add_argument('--no-sandbox')
+    chrome_options.add_argument('--disable-dev-shm-usage')
 
 
+    # WebDriver 설정
+    driver = webdriver.Chrome(options=chrome_options)
 
-# if result["decision"] == "buy":
-#         # 매수
-#         my_krw = upbit.get_balance("KRW")
-#         if my_krw * 0.9995 > 5000:
-#             print("### Buy Order Executed ###")
-#             print(upbit.buy_market_order("KRW-BTC", my_krw * 0.9995))
+    try:
+        # 페이지 로드
+        driver.get(url)
 
-#         else:
-#             print("### Buy Order Failed: Insufficient KRW (less than 5000 KRW) ###")
-#     elif result["decision"] == "sell":
-#         # 매도
-#         my_btc = upbit.get_balance("KRW-BTC")
-#         current_price = pyupbit.get_orderbook(ticker="KRW-BTC")["orderbook_units"][0][
-#             "ask_price"
-#         ]
+        # 페이지가 완전히 로드될 때까지 대기
+        time.sleep(5)  # 동적 콘텐츠 로딩을 위한 대기
 
-#         if my_btc * current_price > 5000:
-#             print("### Sell Order Executed ###")
-#             print(upbit.sell_market_order("KRW-BTC", upbit.get_balance("KRW-BTC")))
-#         else:
-#             print("### Sell Order Failed: Insufficient BTC (less than 5000 KRW) ###")
-#     elif result["decision"] == "hold":
-#         # 보유
-#         print("sell:", result["reason"])
-ai_trading()
+        # 전체 페이지 높이 구하기
+        total_height = driver.execute_script("return document.body.scrollHeight")
 
-# while True:
-#     import time
+        # 브라우저 창 크기 설정
+        driver.set_window_size(1920, total_height)
 
-#     # 10초마다 실행
-#     time.sleep(10)
-#     ai_trading()
+        # 현재 시간을 파일명에 포함
+        if output_path is None:
+            current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_path = f"screenshot_{current_time}.png"
+
+        # 스크린샷 캡처
+        driver.save_screenshot(output_path)
+        print(f"Screenshot saved as: {output_path}")
+
+    except Exception as e:
+        print(f"Error occurred: {str(e)}")
+
+    finally:
+        driver.quit()
+
+
+# 사용 예시
+url = "https://upbit.com/exchange?code=CRIX.UPBIT.KRW-BTC"
+capture_full_page(url)
