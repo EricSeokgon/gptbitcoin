@@ -397,14 +397,14 @@ def ai_trading():
                 "fear_greed": fear_greed_data
             }
 
-            # 6. AI 분석 실행
+            # 7. AI 분석 실행
             ai_result = trader.get_ai_analysis(analysis_data)
 
             if ai_result:
                 print("\n=== AI Analysis Result ===")
                 print(json.dumps(ai_result, indent=2))
 
-                # 7. 매매 실행 (공포탐욕지수 고려)
+                # 8. 매매 실행 (공포탐욕지수 고려)
                 trader.execute_trade(
                     ai_result['decision'],
                     ai_result['confidence_score'],
