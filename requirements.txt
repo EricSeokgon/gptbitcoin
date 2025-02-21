@@ -3,3 +3,4 @@ openai
 pyupbit
 ta
 selenium
+webdriver-manager
