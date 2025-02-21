@@ -23,6 +23,12 @@ class CryptoDataCollector:
             avg_buy_price = float(self.upbit.get_avg_buy_price(self.ticker))  # 평균 매수가
             current_price = float(pyupbit.get_current_price(self.ticker))  # 현재가
 
+            print("보유 중인 모든 암호화폐의 잔고 및 단가 :: ",self.upbit.get_balances())
+            print("보유 현금 :: ",krw_balance)
+            print("보유 암호 화폐 :: ",krw_balance)
+            print("평균 매수가 :: ",krw_balance)
+            print("현재가 :: ",krw_balance)
+
             total_value = krw_balance + (crypto_balance * current_price)
 
             return {
@@ -124,6 +130,9 @@ def ai_trading():
 
         # 3. 차트 데이터 수집
         ohlcv_data = collector.get_ohlcv_data()
+        print("\n=== OHLCV Data ===")
+        print(json.dumps(ohlcv_data, indent=2))
+
 
         # 4. OpenAI에 데이터 제공
         # from openai import OpenAI
