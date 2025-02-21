@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from openai import OpenAI
 from cerebras.cloud.sdk import Cerebras
 import time
+import requests
 
 
 load_dotenv()
@@ -19,13 +20,98 @@ class EnhancedCryptoTrader:
         self.access = os.getenv('UPBIT_ACCESS_KEY')
         self.secret = os.getenv('UPBIT_SECRET_KEY')
         self.upbit = pyupbit.Upbit(self.access, self.secret)
-        #self.client = OpenAI()
         self.client = Cerebras(
         api_key=os.environ.get(
             "CEREBRAS_API_KEY"
         ),  # This is the default and can be omitted
     )
+        self.openai_api_key = os.getenv('OPENAI_API_KEY')
+        self.fear_greed_api = "https://api.alternative.me/fng/"
 
+    def get_crypto_news(self):
+        """비트코인 관련 최신 뉴스 조회"""
+        try:
+            base_url = "https://serpapi.com/search.json"
+            params = {
+                "engine": "google_news",
+                "q": "bitcoin crypto trading",
+                "api_key": self.serpapi_key,
+                "gl": "us",  # 미국 뉴스
+                "hl": "en"   # 영어 뉴스
+            }
+
+            response = requests.get(base_url, params=params)
+            if response.status_code == 200:
+                news_data = response.json()
+
+                if 'news_results' not in news_data:
+                    return None
+
+                processed_news = []
+                for news in news_data['news_results'][:5]:  # 상위 5개 뉴스만 처리
+                    processed_news.append({
+                        'title': news.get('title', ''),
+                        'link': news.get('link', ''),
+                        'source': news.get('source', {}).get('name', ''),
+                        'date': news.get('date', ''),
+                        'snippet': news.get('snippet', '')
+                    })
+
+                print("\n=== Latest Crypto News ===")
+                for news in processed_news:
+                    print(f"\nTitle: {news['title']}")
+                    print(f"Source: {news['source']}")
+                    print(f"Date: {news['date']}")
+
+                return processed_news
+
+            return None
+        except Exception as e:
+            print(f"Error in get_crypto_news: {e}")
+            return None
+
+
+
+    def get_fear_greed_index(self, limit=7):
+        """공포탐욕지수 데이터 조회"""
+        try:
+            response = requests.get(f"{self.fear_greed_api}?limit={limit}")
+            if response.status_code == 200:
+                data = response.json()
+
+                # 최신 공포탐욕지수 출력
+                latest = data['data'][0]
+                print("\n=== Fear and Greed Index ===")
+                print(f"Current Value: {latest['value']} ({latest['value_classification']})")
+
+                # 7일간의 데이터 가공
+                processed_data = []
+                for item in data['data']:
+                    processed_data.append({
+                        'date': datetime.fromtimestamp(int(item['timestamp'])).strftime('%Y-%m-%d'),
+                        'value': int(item['value']),
+                        'classification': item['value_classification']
+                    })
+
+                # 추세 분석
+                values = [int(item['value']) for item in data['data']]
+                avg_value = sum(values) / len(values)
+                trend = 'Improving' if values[0] > avg_value else 'Deteriorating'
+
+                return {
+                    'current': {
+                        'value': int(latest['value']),
+                        'classification': latest['value_classification']
+                    },
+                    'history': processed_data,
+                    'trend': trend,
+                    'average': avg_value
+                }
+
+            return None
+        except Exception as e:
+            print(f"Error in get_fear_greed_index: {e}")
+            return None
 
     def add_technical_indicators(self, df):
         """기술적 분석 지표 추가"""
@@ -181,16 +267,30 @@ class EnhancedCryptoTrader:
                     "ask_prices": analysis_data["orderbook"]["ask_prices"][:3],
                     "bid_prices": analysis_data["orderbook"]["bid_prices"][:3],
                 },
-                "ohlcv": analysis_data["ohlcv"]
+                "ohlcv": analysis_data["ohlcv"],
+                "fear_greed": analysis_data["fear_greed"]  # 공포탐욕지수 데이터 추가
             }
 
 
-            prompt = """분석해서 다음 JSON 형식으로 응답하세요:
+            prompt = """Analyze the cryptocurrency market based on the following data and generate trading signals:
+1. Technical Indicators (RSI, MACD, Bollinger Bands, etc.)
+2. Order Book Data (Buy/Sell Volume)
+3. Fear & Greed Index
+
+
+Please consider the following key points:
+- Fear & Greed Index below 20 (Extreme Fear) may present buying opportunities
+- Fear & Greed Index above 80 (Extreme Greed) may present selling opportunities
+- The trend of the Fear & Greed Index is also a crucial indicator
+
+
+Please respond in the following JSON format:
 {
     "decision": "buy/sell/hold",
-    "reason": "분석 설명",
+    "reason": "detailed analysis explanation",
     "risk_level": "low/medium/high",
-    "confidence_score": 0-100
+    "confidence_score": 0-100,
+    "market_sentiment": "current market sentiment analysis"
 }"""
 
 
@@ -224,24 +324,46 @@ class EnhancedCryptoTrader:
             return None
 
 
-    def execute_trade(self, decision, confidence_score):
-        """매매 실행"""
+    def execute_trade(self, decision, confidence_score, fear_greed_value):
+        """매매 실행 (공포탐욕지수 고려)"""
         try:
-            if decision == "buy" and confidence_score > 70:
-                krw = self.upbit.get_balance("KRW")
-                if krw > 5000:  # 최소 주문금액
-                    order = self.upbit.buy_market_order(self.ticker, krw * 0.9995)
-                    print("\n=== Buy Order Executed ===")
-                    print(json.dumps(order, indent=2))
+            # 공포탐욕지수에 따른 매매 비율 조정
+            if decision == "buy":
+                # 극도의 공포 상태(0-25)에서는 더 과감한 매수
+                if fear_greed_value <= 25:
+                    trade_ratio = 0.9995  # 최대 매수
+                elif fear_greed_value <= 40:
+                    trade_ratio = 0.7  # 중간 매수
+                else:
+                    trade_ratio = 0.5  # 소액 매수
 
-            elif decision == "sell" and confidence_score > 70:
-                btc = self.upbit.get_balance(self.ticker)
-                current_price = pyupbit.get_current_price(self.ticker)
+                if confidence_score > 70:
+                    krw = self.upbit.get_balance("KRW")
+                    if krw > 5000:
+                        order = self.upbit.buy_market_order(self.ticker, krw * trade_ratio)
+                        print("\n=== Buy Order Executed ===")
+                        print(f"Trade Ratio: {trade_ratio * 100}%")
+                        print(json.dumps(order, indent=2))
 
-                if btc * current_price > 5000:
-                    order = self.upbit.sell_market_order(self.ticker, btc)
-                    print("\n=== Sell Order Executed ===")
-                    print(json.dumps(order, indent=2))
+            elif decision == "sell":
+                # 극도의 탐욕 상태(75-100)에서는 더 과감한 매도
+                if fear_greed_value >= 75:
+                    trade_ratio = 1.0  # 전량 매도
+                elif fear_greed_value >= 60:
+                    trade_ratio = 0.7  # 일부 매도
+                else:
+                    trade_ratio = 0.5  # 소량 매도
+
+                if confidence_score > 70:
+                    btc = self.upbit.get_balance(self.ticker)
+                    current_price = pyupbit.get_current_price(self.ticker)
+
+                    if btc * current_price > 5000:
+                        sell_amount = btc * trade_ratio
+                        order = self.upbit.sell_market_order(self.ticker, sell_amount)
+                        print("\n=== Sell Order Executed ===")
+                        print(f"Trade Ratio: {trade_ratio * 100}%")
+                        print(json.dumps(order, indent=2))
 
         except Exception as e:
             print(f"Error in execute_trade: {e}")
@@ -260,30 +382,41 @@ def ai_trading():
         # 3. 차트 데이터 수집
         ohlcv_data = trader.get_ohlcv_data()
 
-        # 4. AI 분석을 위한 데이터 준비
-        if all([current_status, orderbook_data, ohlcv_data]):
+        # 4. 공포탐욕지수 조회
+        fear_greed_data = trader.get_fear_greed_index()
+
+        # 5. 뉴스 데이터 조회
+        news_data = trader.get_crypto_news()
+
+        # 6. AI 분석을 위한 데이터 준비
+        if all([current_status, orderbook_data, ohlcv_data, fear_greed_data]):
             analysis_data = {
                 "current_status": current_status,
                 "orderbook": orderbook_data,
-                "ohlcv": ohlcv_data
+                "ohlcv": ohlcv_data,
+                "fear_greed": fear_greed_data
             }
 
-            # 5. AI 분석 실행
+            # 6. AI 분석 실행
             ai_result = trader.get_ai_analysis(analysis_data)
 
             if ai_result:
                 print("\n=== AI Analysis Result ===")
                 print(json.dumps(ai_result, indent=2))
 
-                # 6. 매매 실행
-                trader.execute_trade(ai_result['decision'], ai_result['confidence_score'])
+                # 7. 매매 실행 (공포탐욕지수 고려)
+                trader.execute_trade(
+                    ai_result['decision'],
+                    ai_result['confidence_score'],
+                    fear_greed_data['current']['value']
+                )
 
     except Exception as e:
         print(f"Error in ai_trading: {e}")
 
 
 if __name__ == "__main__":
-    print("Starting Enhanced Bitcoin Trading Bot...")
+    print("Starting Enhanced Bitcoin Trading Bot with Fear & Greed Index...")
     print("Press Ctrl+C to stop")
 
     while True:
@@ -295,4 +428,4 @@ if __name__ == "__main__":
             break
         except Exception as e:
             print(f"Error in main loop: {e}")
-            time.sleep(60)  # 에러 발생 시에도 60초 대기
+            time.sleep(60)  # 에러 발생 시 60초 대기
